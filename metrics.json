@@ -1,0 +1,6 @@
+{
+  "accuracy": 0.8100558659217877,
+  "test_size": 179,
+  "n_features": 8,
+  "model_path": "titanic_model.pkl"
+}

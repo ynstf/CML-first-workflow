@@ -1,0 +1,48 @@
+name: cml-simple
+on: [push]
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      
+      - uses: iterative/setup-cml@v2
+
+      # <-- Ajout: crée les dossiers attendus par train.py / evaluate.py
+      - name: Prepare folders
+        run: mkdir -p models reports
+
+      - name: Install & run
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          python train.py
+          python evaluate.py   # doit générer metrics.json et reports/*.png
+
+      - name: Build CML report (compact)
+        run: |
+          set -euo pipefail; set +H
+          {
+            printf "## Rapport\n\n### Métriques\n\n\`\`\`json\n"
+            [ -s metrics.json ] && cat metrics.json || printf '{}\n'
+            printf "\n\`\`\`\n\n"
+            for img in reports/confusion_matrix.png reports/feature_importance.png; do
+              [ -f "$img" ] && printf '![inline](%s)\n' "$img"
+            done
+            printf '\n'
+          } > report.md
+
+      - name: Post CML comment
+        env:
+          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: cml comment create --target="commit/$GITHUB_SHA" report.md
+
+
+
+        
