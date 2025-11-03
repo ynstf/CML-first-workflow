@@ -1,0 +1,39 @@
+name: CML-Pipeline
+
+on: [push]
+permissions: write-all
+
+jobs:
+  train-and-report:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Train model
+        run: |
+          python train.py
+      
+      - name: Create CML report
+        env:
+          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npm install -g @dvcorg/cml
+          
+          echo "## Métriques du modèle" > report.md
+          echo "" >> report.md
+          cat metrics.json >> report.md
+          
+          cml comment create report.md
+
