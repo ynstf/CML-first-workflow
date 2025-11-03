@@ -1,48 +1,81 @@
-name: cml-simple
-on: [push]
+name: CML Model Comparison Pipeline
 
-permissions:
-  contents: write
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  run:
+  train-compare-report:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.11' }
-      
-      - uses: iterative/setup-cml@v2
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-      # <-- Ajout: crée les dossiers attendus par train.py / evaluate.py
-      - name: Prepare folders
-        run: mkdir -p models reports
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
 
-      - name: Install & run
+      - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
+          pip install --upgrade pip
           pip install -r requirements.txt
-          python train.py
-          python evaluate.py   # doit générer metrics.json et reports/*.png
 
-      - name: Build CML report (compact)
+      - name: Train all models
         run: |
-          set -euo pipefail; set +H
-          {
-            printf "## Rapport\n\n### Métriques\n\n\`\`\`json\n"
-            [ -s metrics.json ] && cat metrics.json || printf '{}\n'
-            printf "\n\`\`\`\n\n"
-            for img in reports/confusion_matrix.png reports/feature_importance.png; do
-              [ -f "$img" ] && printf '![inline](%s)\n' "$img"
-            done
-            printf '\n'
-          } > report.md
+          python train_experiments.py
 
-      - name: Post CML comment
+      - name: Compare models and generate report
+        run: |
+          python compare_models.py
+
+      - name: Create CML report
         env:
           REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: cml comment create --target="commit/$GITHUB_SHA" report.md
+        run: |
+          npm install -g @dvcorg/cml
 
+          echo "# 🏆 Rapport de Comparaison de Modèles - Exercice 3" >> report.md
+          echo "" >> report.md
 
+          echo "## 🎯 Meilleur Modèle Sélectionné" >> report.md
+          echo "" >> report.md
+          echo '```json' >> report.md
+          cat experiments/best_model.json >> report.md
+          echo '```' >> report.md
+          echo "" >> report.md
 
-        
+          echo "## 📊 Comparaison des Accuracy" >> report.md
+          echo "" >> report.md
+          cml publish reports/accuracy_comparison.png --md >> report.md
+          echo "" >> report.md
+
+          echo "## 📈 Comparaison de Toutes les Métriques" >> report.md
+          echo "" >> report.md
+          cml publish reports/all_metrics_comparison.png --md >> report.md
+          echo "" >> report.md
+
+          echo "## 🔥 Heatmap des Performances" >> report.md
+          echo "" >> report.md
+          cml publish reports/performance_heatmap.png --md >> report.md
+          echo "" >> report.md
+
+          echo "## 📋 Résultats Détaillés" >> report.md
+          echo "" >> report.md
+          echo "<details>" >> report.md
+          echo "<summary>Cliquez pour voir tous les résultats</summary>" >> report.md
+          echo "" >> report.md
+          echo '```json' >> report.md
+          cat experiments/all_results.json >> report.md
+          echo '```' >> report.md
+          echo "</details>" >> report.md
+
+          cml comment create report.md
