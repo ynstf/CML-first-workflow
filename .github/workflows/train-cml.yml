@@ -38,9 +38,11 @@ jobs:
           cml comment create report.md
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: titanic-files
           path: |
             models/
             metrics.json
+          retention-days: 7
