@@ -2,26 +2,25 @@ name: CML Model Comparison Pipeline
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   pull_request:
-    branches: [main]
-
-permissions:
-  contents: write
-  pull-requests: write
+    branches:
+      - main
 
 jobs:
   train-compare-report:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-      - uses: actions/setup-node@v3
-        with:
-          node-version: "18"
-
-      - uses: actions/setup-python@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
           python-version: "3.11"
 
@@ -31,27 +30,19 @@ jobs:
           pip install -r requirements.txt
 
       - name: Train all models
-        run: python -u train_experiments.py
+        run: |
+          python train_experiments.py
 
-      - name: Compare models
-        run: python -u compare_models.py
+      - name: Compare models and generate report
+        run: |
+          python compare_models.py
 
-      - name: Install CML
-        run: npm install -g @dvcorg/cml
-
-      - name: Generate CML report (shell script)
-        run: bash scripts/generate_cml_report.sh
-
-      - name: Post comment with CML
+      - name: Create CML report
         env:
           REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: cml comment create report.md
+        run: |
+          npm install -g @dvcorg/cml
 
-      - name: Upload artifacts (fallback)
-        uses: actions/upload-artifact@v4
-        with:
-          name: report-and-images
-          path: |
-            report.md
-            experiments/*.json
-            reports/*.png
+          chmod +x scripts/generate_cml_report.sh
+
+          bash scripts/generate_cml_report.sh
